@@ -36,3 +36,6 @@ models/
 
 # Logs
 *.log
+
+# Embeddings (large files)
+embeddings/*.npz
