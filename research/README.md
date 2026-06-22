@@ -13,6 +13,7 @@ This directory contains research notes, methodology documentation, and stage-by-
 | 5 | `05_model_selection.md` | Model selection: 18 experiments, 8 classifiers, stacking analysis |
 | 6 | `06_final_model_training.md` | Final model training, error analysis, and production export |
 | 7 | `07_pytorch_deep_learning.md` | PyTorch architectures: Attention, ResNet, Wide — beating 97.5% |
+| 8 | `08_onnx_edge_cases_validation.md` | ONNX export (9.5x faster), edge cases, adversarial tests, unseen data |
 
 ## Figures
 

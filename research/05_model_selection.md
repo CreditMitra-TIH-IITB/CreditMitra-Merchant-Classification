@@ -154,8 +154,8 @@ We tested **18 model×feature configurations** spanning 8 classifier families ac
 
 ## Next Steps
 
-- [ ] Train final MLP_large on full training data
-- [ ] Export model + scaler for production inference
-- [ ] Test edge cases and adversarial examples
-- [ ] Create inference API/pipeline
-- [ ] Evaluate on real-world unseen data
+- [x] Train final MLP_large on full training data (Stage 6)
+- [x] Export model + scaler for production inference (Stage 6, 8)
+- [x] Test edge cases and adversarial examples (Stage 8)
+- [x] Create inference API/pipeline (classifier.py + classify.py)
+- [x] Evaluate on real-world unseen data (Stage 8)
