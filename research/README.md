@@ -14,6 +14,7 @@ This directory contains research notes, methodology documentation, and stage-by-
 | 6 | `06_final_model_training.md` | Final model training, error analysis, and production export |
 | 7 | `07_pytorch_deep_learning.md` | PyTorch architectures: Attention, ResNet, Wide — beating 97.5% |
 | 8 | `08_onnx_edge_cases_validation.md` | ONNX export (9.5x faster), edge cases, adversarial tests, unseen data |
+| 9 | `09_final_summary.md` | **Complete project summary, architecture, deployment, limitations** |
 
 ## Figures
 
@@ -26,3 +27,5 @@ Build a binary classifier that distinguishes **Person Names** from **Merchant/Bu
 ## Best Result
 
 **PyTorch AttentionMLP (self-attention + MLP) on Qwen3 embeddings: 98.36% test accuracy** (F1=0.985, AUC=0.997) — 33% fewer errors than sklearn MLP baseline.
+
+## Project Status: COMPLETE ✓
