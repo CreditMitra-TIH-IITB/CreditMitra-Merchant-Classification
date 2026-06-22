@@ -42,7 +42,7 @@ Merchant Classification, UPI Transactions, Text Embeddings, Self-Attention, ONNX
 
 India's Unified Payments Interface (UPI) processes over 17~billion transactions per month~\cite{rbi2025vision}, generating vast volumes of transaction narration strings that encode counterparty information. For credit underwriting, these narrations are the primary signal: a lender who can determine that an applicant regularly pays merchants such as Swiggy, BigBasket, and HDFC Life can construct a far more accurate spending profile than one relying on aggregate account balances alone.
 
-The CreditMitra pipeline~\cite{creditmitra_proposal} decomposes this task into three stages. First, payee names are extracted from raw narration strings using a fine-tuned small language model~\cite{dpqlora_paper}. Second, each extracted payee is classified as a \emph{person} (indicating a P2P transfer) or a \emph{merchant} (indicating a P2M payment). Third, merchant-level data is aggregated into structured spending profiles for credit-risk models. This paper addresses the second stage: binary person--merchant classification.
+The CreditMitra pipeline decomposes this task into three stages. First, payee names are extracted from raw narration strings using a fine-tuned small language model~\cite{dpqlora_paper}. Second, each extracted payee is classified as a \emph{person} (indicating a P2P transfer) or a \emph{merchant} (indicating a P2M payment). Third, merchant-level data is aggregated into structured spending profiles for credit-risk models. This paper addresses the second stage: binary person--merchant classification.
 
 The classification task is deceptively difficult for three reasons. First, Indian payee names are short---typically one to three words---providing minimal lexical signal. Second, many Indian merchant brands are etymologically derived from person names (e.g., ``Haldiram'' from a founder's name, ``Tanishq'' which is also a given name), creating genuine linguistic ambiguity. Third, UPI narration formats vary across banks: names may appear in uppercase, mixed case, truncated, or prefixed with payment-rail identifiers.
 
@@ -422,11 +422,8 @@ Future work will investigate three directions: (1)~fine-tuning the embedding mod
 \bibitem{rbi2025vision}
 Reserve Bank of India, ``Payment Systems Vision 2025,'' RBI, Mumbai, 2022. [Online]. Available: \url{https://www.rbi.org.in}
 
-\bibitem{creditmitra_proposal}
-S.~Jain et al., ``CreditMitra: India's Privacy-Preserving Agentic AI System for Automated Credit Underwriting from Heterogeneous Bank Statements,'' TIH-IoT Chanakya Fellowship Proposal, ABV-IIITM Gwalior, Dec.\ 2025.
-
 \bibitem{dpqlora_paper}
-D.~Kwatra, S.~Jain, S.~Katiyar, G.~Kalia, and D.~Sanghvi, ``Privacy-Preserving Instruction Tuning of Small Language Models for Financial Entity Extraction via DP-QLoRA,'' submitted to \textit{IEEE ANTS}, 2026.
+D.~Kwatra, S.~Jain, S.~Katiyar, G.~Kalia, and D.~Sanghvi, ``Privacy-Preserving Instruction Tuning of Small Language Models for Financial Entity Extraction via DP-QLoRA,'' 2026.
 
 \bibitem{reimers2019sentence}
 N.~Reimers and I.~Gurevych, ``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,'' in \textit{Proc.\ EMNLP}, 2019, pp.~3982--3992.

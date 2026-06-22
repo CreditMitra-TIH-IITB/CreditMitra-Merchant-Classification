@@ -1,0 +1,180 @@
+--- PAGE 10 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 10 of 12 
+ 
+ 
+ 
+Fig. 3: Detailed architecture of CreditMitra 
+The detailed architecture of proposed CreditMitra incorporating data protection using 
+differential-privacy is shown in Fig. 3. 
+ 
+ 
+ 
+ 
+
+--- PAGE 11 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 11 of 12 
+ 
+ 
+Sr. 
+No. 
+Milestone 
+Target Date Remarks 
+1 
+Dataset and Pipeline Setup 
+1 month 
+Dataset for both payee name 
+extraction 
+model 
+and 
+merchant/ 
+non-merchant 
+identification model will be 
+made. 
+2 
+SLM 
+Fine-Tuning 
+(Payee 
+& 
+Class) 
+2 months 
+Fine-tuned models (payee 
+name 
+extraction, 
+and 
+merchant/non 
+merchant 
+identification) will be privacy 
+aware. 
+3 
+Merchant 
+Extraction 
+(LLM 
+Knowledge base) 
+2 months 
+Fallback of Langsearch will 
+be incorporated, information 
+found about merchants will 
+be 
+stored 
+in 
+a 
+vector 
+database. 
+4 
+Dynamic Credit Risk Modelling 
+ 
+High focus will be on making 
+models 
+dynamic; 
+by 
+incorporating 
+information 
+about merchants will be 
+there, the models are privacy 
+aware 
+5 
+End to End Pipeline (Testing and 
+Optimization) 
+2 months 
+The whole pipeline will be 
+tested on vast variety of bank 
+statements; the pipeline will 
+be tested both at user level 
+and bank level. 
+6 
+GUI App Storage and Scalability 3 months 
+Features will be incorporated 
+in easy-to-use GUI apps, 
+and prototypes will be given 
+for testing and validation. 
+ 
+8 Challenges / Risks & Mitigation 
+● Dataset is not available to solve this problem, we need to use bank statements of 
+different people to get the dataset, also merchant transactions are mostly only 10% 
+of all the transactions, so dataset is highly imbalanced.  
+● Fine tuning SLM’s take high computations, and datasets need to be labelled 
+manually. 
+
+--- PAGE 12 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 12 of 12 
+ 
+ 
+9 Resources and budget 
+• GPU access is required for fine-tuning SLMs: We already have GPUs/workstation 
+in our lab. 
+• A one-time LangSearch license cost of approximately ₹40,000 will be required. 
+S. No.  
+Budget Head 
+Justification 
+Total (INR) 
+1 
+Students Fellowship (UG) 
+@1000*10 months (for 3 UG 
+Students) 
+300000 
+2 
+Contingency  
+@20000*3 (for 3 UG students) 
+60000 
+Total 
+3,60,000 
+ 
+Bibliography: 
+[1] A. Trivedi, S. Mukherjee, R. K. Singh, V. Agarwal, S. Ramakrishnan, and Himanshu S. 
+Bhatt. "TabSniper: Towards Accurate Table Detection & Structure Recognition for Bank 
+Statements." arXiv preprint arXiv:2412.12827, 2024. 
+[2] Glennon, Dennis, and Peter Nigro. "Evaluating the performance of static versus dynamic 
+models of credit default: evidence from long-term small business administration-guaranteed 
+loans." Journal of Credit Risk 7, no. 2, pp. 3-35, 2011. 
+[3] https://langsearch.com/ 
+[4] Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., Küttler, H., Lewis, 
+M., Yih, W.T., Rocktäschel, T. and Riedel, S., “Retrieval-augmented generation for 
+knowledge-intensive NLP tasks,” Advances in neural information processing systems, 33, 
+pp. 9459-9474, 2020. 
+[5] Yu, D., Naik, S., Backurs, A., Gopi, S., Inan, H.A., Kamath, G., Kulkarni, J., Lee, Y.T., 
+Manoel, A., Wutschitz, L. and Yekhanin, S., 2021. Differentially private fine-tuning of 
+language models. arXiv preprint arXiv:2110.06500. 
+[6] Yu, Manjiang, and Priyanka Singh. "Differentially Private Fine-Tuning of Large Language 
+Models: A Survey," International Conference on Advanced Data Mining and Applications, 
+Singapore”, Springer Nature, pp. 100-113., 2025. 
+ 
+

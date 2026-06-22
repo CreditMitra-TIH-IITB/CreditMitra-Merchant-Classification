@@ -1,0 +1,284 @@
+--- PAGE 1 ---
+ 
+ 
+ 
+TIH reserves all rights in this document and in 
+the 
+information 
+contained 
+therein. 
+Reproduction, use or disclosure to third parties 
+without express authority is strictly forbidden. 
+Version 1.0.0 
+28 November-2025 
+TIH 
+ 
+ 
+ 
+ 
+Page 1 of 12 
+ 
+ 
+Project Proposal  
+ 
+TIH - IoT CHANAKYA Fellowship  
+Program 2025  
+ 
+CreditMitra: India’s Privacy-Preserving Agentic AI 
+System for Automated Credit Underwriting from 
+Heterogeneous Bank Statements 
+ 
+Submitted by 
+Dr. Sandesh Jain 
+Assistant Professor, ABV-IIITM Gwalior 
+18 December 2025 
+ 
+ 
+ 
+
+--- PAGE 2 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 2 of 12 
+ 
+ 
+1 Team details 
+Sr. No. 
+Name 
+ 
+Details 
+1 
+Project Title 
+CreditMitra: India’s Privacy-Preserving Agentic AI 
+System for Automated Credit Underwriting from 
+Heterogeneous Bank Statements 
+2 
+Faculty Mentor 
+Dr. Sandesh Jain (PI/Mentor) and Dr. Somesh 
+Kumar (Co-PI/Co-Guide) 
+ 
+Name & Dept. 
+Electrical and Electronics Engineering 
+ 
+College Name 
+ABV-IIITM Gwalior 
+3 
+Student details 
+ 
+a 
+Team Leader (1) Name 
+Disha Kwatra 
+ 
+Degree/Dept/Year 
+IMG (Integrated B. Tech + MBA), Information 
+Technology Department, 3rd year 
+b 
+Member 2 Name 
+Gargi Kalia 
+ 
+Degree/Dept/Year 
+IMT (Integrated B. Tech + M. Tech), Information 
+Technology Department, 2nd year 
+c 
+Member 3 Name 
+Shivansh Katiyar 
+ 
+Degree/Dept/Year 
+IMG (Integrated B. Tech + MBA), Information 
+Technology Department, 2nd year 
+Duration of the project: UG students – up to 10 months; PG students - up to 2 years  
+ 
+2 Executive Summary  
+Bank statements in India lack a standardized format, making information extraction from 
+heterogeneous layouts difficult and forcing lenders to rely on manual reviews or expensive 
+third-party platforms such as Perfios, which also introduce privacy risks. Existing credit-risk 
+models are largely static and fail to capture real-time transaction behavior as customer 
+
+--- PAGE 3 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 3 of 12 
+ 
+ 
+financial patterns evolve. Payee-level details are especially critical; for example, frequent 
+payments to gambling platforms may indicate higher default risk compared to stable, 
+consumption-linked spending. These challenges highlight the need for a scalable, privacy-
+preserving AI system that can accurately extract transactions, identify payees, and integrate 
+these signals into dynamic credit-risk models. To enable nationwide deployment, the system 
+should leverage a distributed LLM architecture, where lightweight models run on client 
+devices and heavier components operate on backend nodes, reducing latency and ensuring 
+sensitive financial text remains close to the source. 
+ 
+3 Statement of the problem 
+Indian banks do not adhere to a unified format for bank statements. They employ a variety 
+of layouts, table structures, narration styles, and field conventions. This heterogeneity in the 
+representation of transaction strings, combined with often noisy and unstructured 
+transaction descriptions, makes automated credit assessment a significant challenge [1]. 
+As a result, lenders often remain reliant on manual reviews, rule-based parsing techniques, 
+and costly third-party orchestrators. This dependency not only delays the loan processing 
+timeline but also hinders scalable underwriting operations. Furthermore, because banks rely 
+on these third-party applications, there are inherent privacy risks and additional costs 
+involved. Additionally, most credit-risk models remain static or are only periodically updated, 
+which makes it difficult for them to adapt to the growing volume and complexity of business 
+transactions. 
+Understanding the payee information within transaction strings is crucial for credit-risk 
+modeling. Although many existing credit models utilize this information, they often remain 
+static or only update periodically [2]. This static nature limits their ability to keep pace with 
+the increasing volume and complexity of business transactions. 
+One key challenge is that non-merchant transactions typically offer little to no added value 
+for risk assessment. Moreover, there can be multiple payees with the same name, which 
+complicates the process of identifying merchant-related transactions. 
+
+--- PAGE 4 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 4 of 12 
+ 
+ 
+In our simulation studies, we discovered that only about 10% of transactions are merchant 
+transactions. This makes it essential to classify payees into merchant and non-merchant 
+categories. To achieve this, we use a fine-tuned SLM or a trained classifier, with an 
+emphasis on high recall to ensure that we accurately identify as many merchant payees as 
+possible. 
+Our model is designed to be lightweight so that it can be easily deployed in local computing 
+environments. Instead of relying on costly and resource-intensive Google searches to find 
+payee information, we leverage a Large Language Model’s knowledge base for known 
+merchants. As a fallback, we use Langsearch [3], a retrieval-augmented generation (RAG) 
+[4] system based on internet data, which is both fast and cost-effective while providing 
+accurate information. 
+Additionally, most of the machine learning models have issues of data leakage on Inference, 
+this problem also exists with credit risk models. To address this challenge, we introduce an 
+on-device differential privacy–enhanced small language model (DP-SLM) [5], inspired by 
+the differential privacy framework for LLMs (DPF-LLM) [6]. In addition, we propose a 
+distributed LLM architecture in which lightweight models operate collaboratively across  
+Fig. 1: Basic Pipeline of CreditMitra 
+clients’ devices and secure backend nodes, enabling privacy-preserving and scalable 
+inference. This design improves inference latency, reduces central computing load, and 
+ensures that sensitive information is processed as close to the source as possible, 
+supporting large-scale parallel processing. Sensitive financial text, such as narration details, 
+UTRs, and salary information, is processed locally or inside confidential environments, 
+preventing exposure of raw data. Differentially private training (DP-SGD) further protects 
+
+--- PAGE 5 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 5 of 12 
+ 
+ 
+against leakage, ensuring compliance with RBI data localization norms, GDPR, and 
+SOC2. Basic pipeline of CreditMitra is shown in Fig. 1. 
+4 Objectives / Solution 
+1. Efficient extraction of Bank transaction information from heterogeneous bank 
+statements. 
+Given the heterogeneity of Indian bank statements, the system must reliably extract 
+the maximum amount of relevant transaction information while effectively managing 
+differences in formatting, structure, and presentation. 
+ 
+2. Efficient extraction of payee name and merchant/non merchant classification. 
+Payee names in transaction strings provide important insight into a borrower’s 
+financial behavior. Since banks use different transaction-string formats, accurate 
+extraction of payee names is essential. Because most transactions are non-merchant 
+and add limited value, the system must also classify merchant vs. non-merchant 
+transactions with very high recall for merchant detection. 
+ 
+3. Making Credit risk detection models dynamic by adding real time merchant 
+information. 
+Most credit-risk models are static or updated only periodically, making them unable 
+to capture newly emerging merchants. Therefore, incorporating real-time merchant 
+information is essential to keep the models dynamic and responsive. 
+ 
+4. Ensure user privacy throughout the app, and credit risk models. 
+Financial data is highly confidential, and credit-risk models can leak training 
+information during inference. Therefore, strong privacy protections must be 
+integrated throughout the system’s design and development. 
+ 
+5. Store resolved merchant information for faster processing in the future 
+ After a merchant is identified once, their details are stored in a local merchant 
+database. This avoids repeated LLM or Langsearch calls for the same merchant, 
+improving response time and reducing computational costs. 
+ 
+6. Introduce a distributed LLM architecture for security and low latency 
+To ensure scalability, a distributed computing architecture must be implemented, and 
+a distributed LLM setup built on this paradigm should be used. 
+ 
+
+--- PAGE 6 ---
+ 
+Doc Class: 
+General 
+ 
+Project Proposal Form 
+Version 1.0.0 
+28 November-2025  
+ 
+ 
+ 
+ 
+ 
+ 
+Page 6 of 12 
+ 
+ 
+5 Product / Solution Category of the proposed project 
+Improvements to existing Products with significant value add:  
+Qualifying Features: Most existing credit risk models are largely static and, even when 
+dynamic, are updated only periodically, causing them to miss newly emerging businesses. 
+With the rapid growth in transaction volume and business diversity, credit risk models must 
+become more adaptive. We propose a dynamic pipeline that incorporates real-time 
+merchant information extracted directly from transaction data. Merchant identification is 
+performed using a Large Language Model (LLM) knowledge base with a LangSearch 
+fallback for real-time retrieval. Transactions are categorized into 20 merchant categories, 
+improving merchant classification accuracy from 49% to 91%. Additionally, privacy risks are 
+mitigated by training models using Differentially Private Stochastic Gradient Descent (DP-
+SGD), ensuring strong privacy guarantees during training and inference. We have already 
+made initial prototype of CreditMitra as shown in Fig. 2, where users upload 
+transaction data in an unstructured format, which is then automatically analyzed and 
+categorized.  
+ 
+ 
+Fig. 2: Our preliminary developed prototype of CreditMitra 
+
