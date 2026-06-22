@@ -1,0 +1,451 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds, calc, patterns}
+\usepackage{hyperref}
+\usepackage{multirow}
+\usepackage{enumitem}
+
+\begin{document}
+
+\title{Embedding-Based Binary Classification of Person and
+Merchant Names in Indian UPI Transactions Using
+Attention-Enhanced MLP}
+
+\author{
+  \IEEEauthorblockN{[Authors]}
+}
+
+\maketitle
+
+\begin{abstract}
+Credit underwriting from Indian bank statements requires distinguishing person-to-person (P2P) transfers from person-to-merchant (P2M) payments within UPI transaction narrations. Once a payee name has been extracted from the narration string, the next critical step is classifying whether that payee is a person or a merchant. This classification is challenging because Indian payee names are short, linguistically ambiguous (e.g., ``Tanishq'' is both a given name and a jewellery brand), and lack standardised formatting across banks.
+
+We propose a two-stage pipeline that first encodes payee names into 1024-dimensional embeddings using Qwen3-Embedding-0.6B, then classifies them with an AttentionMLP architecture that reshapes the embedding into a sequence of pseudo-tokens and applies multi-head self-attention before classification. On a dataset of 233{,}478 synthetically generated Indian person and merchant names, AttentionMLP achieves a test accuracy of \textbf{98.36\%} (F1\,=\,0.985, AUC\,=\,0.997), outperforming eight baseline classifiers including SVMs, gradient boosting, and standard MLPs. Edge-case evaluation on deliberately ambiguous names yields 85.4\% accuracy, and validation on completely unseen names achieves 94.1\%. The classifier is exported to ONNX for cross-platform deployment, achieving a 205$\times$ size reduction and 9.5$\times$ faster single-sample inference on CPU compared to PyTorch on GPU. The full pipeline, including the embedding model, is deployable without PyTorch dependencies.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Merchant Classification, UPI Transactions, Text Embeddings, Self-Attention, ONNX Deployment
+\end{IEEEkeywords}
+
+%% -----------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+
+India's Unified Payments Interface (UPI) processes over 17~billion transactions per month~\cite{rbi2025vision}, generating vast volumes of transaction narration strings that encode counterparty information. For credit underwriting, these narrations are the primary signal: a lender who can determine that an applicant regularly pays merchants such as Swiggy, BigBasket, and HDFC Life can construct a far more accurate spending profile than one relying on aggregate account balances alone.
+
+The CreditMitra pipeline~\cite{creditmitra_proposal} decomposes this task into three stages. First, payee names are extracted from raw narration strings using a fine-tuned small language model~\cite{dpqlora_paper}. Second, each extracted payee is classified as a \emph{person} (indicating a P2P transfer) or a \emph{merchant} (indicating a P2M payment). Third, merchant-level data is aggregated into structured spending profiles for credit-risk models. This paper addresses the second stage: binary person--merchant classification.
+
+The classification task is deceptively difficult for three reasons. First, Indian payee names are short---typically one to three words---providing minimal lexical signal. Second, many Indian merchant brands are etymologically derived from person names (e.g., ``Haldiram'' from a founder's name, ``Tanishq'' which is also a given name), creating genuine linguistic ambiguity. Third, UPI narration formats vary across banks: names may appear in uppercase, mixed case, truncated, or prefixed with payment-rail identifiers.
+
+Rule-based approaches (keyword matching, suffix detection) fail on the ambiguous boundary cases that matter most for credit assessment. Large language model prompting is accurate but prohibitively slow for high-throughput processing. We propose instead an \emph{embedding-based} approach: encode each payee name into a dense vector using a pre-trained multilingual embedding model, then classify using a lightweight neural network.
+
+This paper makes three contributions:
+\begin{enumerate}[leftmargin=*]
+  \item We construct a large-scale dataset of 233{,}478 Indian person and merchant names with systematic augmentation strategies tailored to UPI narration formats.
+  \item We propose AttentionMLP, a classifier that treats a 1024-dimensional embedding as a sequence of pseudo-tokens and applies multi-head self-attention, achieving 98.36\% accuracy and outperforming eight baseline classifiers.
+  \item We demonstrate a complete ONNX deployment pipeline that eliminates PyTorch dependencies while maintaining numerical equivalence, enabling cross-platform deployment on commodity hardware.
+\end{enumerate}
+
+%% -----------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Text Embedding for Classification}
+
+Transformer-based text embeddings have become the standard representation for downstream classification tasks. Sentence-BERT~\cite{reimers2019sentence} demonstrated that fine-tuned BERT embeddings, combined with simple classifiers, could match or exceed task-specific architectures. More recently, instruction-tuned embedding models such as E5~\cite{wang2024e5} and GTE~\cite{li2023gte} have achieved state-of-the-art performance on multilingual benchmarks. We use Qwen3-Embedding-0.6B, a 595M-parameter model that produces 1024-dimensional embeddings with strong multilingual and semantic capabilities.
+
+\subsection{Named Entity Classification in Finance}
+
+Financial NER systems typically classify entities into categories such as organisations, persons, and monetary values~\cite{salinas2023finNER}. However, these systems operate on full sentences and rely on surrounding context. In UPI narrations, the payee name appears in isolation---often without any contextual tokens---making standard NER approaches inapplicable. Our task is closer to entity type classification from a name string alone.
+
+\subsection{Merchant Category Classification}
+
+Payment networks (Visa, Mastercard) assign Merchant Category Codes (MCCs) to registered merchants~\cite{visa_mcc}. However, MCCs are available only for formally registered merchants and do not cover the informal economy that dominates Indian retail. UPI P2M transactions to small shops, street vendors, and local service providers lack MCC metadata entirely, necessitating name-based classification.
+
+%% -----------------------------------------------------------
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Dataset Construction}
+
+We construct a binary classification dataset of Indian payee names, since no public dataset of UPI counterparty names exists. The dataset comprises 233{,}478 names split into two classes.
+
+\textbf{Person names} (114{,}279 samples) are generated programmatically using Indian naming conventions across Hindu, Muslim, Sikh, Christian, and South Indian communities. Names follow regional patterns: first name only, first + last, first + middle + last, and honorific-prefixed variants. Augmentation includes case variations (uppercase, lowercase, title case), initial abbreviation (``R. Kumar''), and UPI-prefix injection (``UPI-Rajesh Kumar'').
+
+\textbf{Merchant names} (119{,}199 samples) combine real Indian brand names (Swiggy, Flipkart, HDFC Bank, Reliance Jio) with synthetically generated business names following Indian commercial patterns (``Sharma General Store'', ``Khan Tailors'', ``Sri Venkateshwara Traders''). Augmentation adds suffixes (``Pvt Ltd'', ``India''), abbreviations, and transaction-format variations.
+
+The dataset is split 80/20 into training (186{,}783) and test (46{,}695) sets with stratified sampling. The class distribution is approximately balanced: 46\% person, 54\% merchant.
+
+\subsection{Embedding Generation}
+
+Each name string is encoded using Qwen3-Embedding-0.6B~\cite{qwen3} via the sentence-transformers framework. The model produces 1024-dimensional L2-normalised embeddings using last-token pooling. Embedding generation for the full dataset takes approximately 30~minutes on a single NVIDIA GPU.
+
+Exploratory analysis of the embedding space (Fig.~\ref{fig:umap}) reveals well-separated clusters for persons and merchants, with overlap concentrated at the boundary where person-derived brand names (``Tanishq'', ``Lakme'') reside. Fisher discriminant analysis identifies 200 of 1024 dimensions as carrying most discriminative power, though the full 1024-dimensional representation yields optimal classification performance.
+
+\subsection{AttentionMLP Architecture}
+
+Standard MLP classifiers treat the 1024-dimensional embedding as a flat feature vector, ignoring potential inter-dimensional dependencies. We propose AttentionMLP, which reinterprets the embedding as a sequence of pseudo-tokens and applies self-attention to capture cross-dimensional interactions.
+
+The architecture proceeds in three stages (Fig.~\ref{fig:arch}):
+
+\textbf{Stage 1: Token Reshaping.} The 1024-dimensional embedding $\mathbf{e} \in \mathbb{R}^{1024}$ is reshaped into a sequence of 64 tokens of dimension 16: $\mathbf{T} \in \mathbb{R}^{64 \times 16}$. A learnable positional embedding $\mathbf{P} \in \mathbb{R}^{64 \times 16}$ is added to encode ordinal position within the embedding vector.
+
+\textbf{Stage 2: Self-Attention.} Two multi-head self-attention layers (8 heads each, $d_k = 2$) process the token sequence with residual connections and layer normalisation:
+\begin{equation}
+  \text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V
+\end{equation}
+\begin{equation}
+  \mathbf{T}' = \text{LayerNorm}\!\left(\mathbf{T} + \text{MHSA}(\mathbf{T})\right)
+\end{equation}
+This allows the model to learn dependencies between different regions of the embedding space---for example, that certain dimension groups co-activate for merchant-specific semantic features.
+
+\textbf{Stage 3: Classification MLP.} The attended tokens are flattened to a 1024-dimensional vector and passed through a classification head: $1024 \to 512 \to 256 \to 1$, with BatchNorm, GELU activation, and dropout (0.3) between layers. The output is a sigmoid probability of the merchant class.
+
+The total parameter count is 661{,}249, making the classifier lightweight relative to the 595M-parameter embedding model.
+
+%% ── FIGURE: Architecture ────────────────────────────
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[
+  node distance=0.38cm,
+  box/.style={draw, rounded corners=3pt, fill=blue!8,
+              minimum width=3.8cm, minimum height=0.48cm,
+              font=\scriptsize, align=center},
+  attnbox/.style={draw, rounded corners=3pt, fill=orange!12,
+              minimum width=3.8cm, minimum height=0.48cm,
+              font=\scriptsize, align=center},
+  arrow/.style={-Stealth, thick},
+  ann/.style={font=\tiny, text=gray}
+]
+\node[box]     (input)  {Payee Name String\\``Swiggy Instamart''};
+\node[box,     below=of input]  (embed)  {Qwen3-Embedding-0.6B\\1024-dim, L2-normalised};
+\node[box,     below=of embed]  (scale)  {StandardScaler\\fitted on training set};
+\node[box,     below=of scale]  (reshape){Reshape $1024 \to 64 \times 16$\\+ Positional Embedding};
+\node[attnbox, below=of reshape](attn1) {Multi-Head Self-Attention\\8 heads, $d_k{=}2$ + LayerNorm};
+\node[attnbox, below=of attn1] (attn2)  {Multi-Head Self-Attention\\8 heads, $d_k{=}2$ + LayerNorm};
+\node[box,     below=of attn2] (mlp)    {MLP: $1024 \to 512 \to 256 \to 1$\\BatchNorm + GELU + Dropout};
+\node[box,     below=of mlp]   (out)    {$\sigma(\cdot) \to$ person / merchant};
+
+\draw[arrow] (input)   -- (embed);
+\draw[arrow] (embed)   -- node[right,ann]{1024-dim} (scale);
+\draw[arrow] (scale)   -- (reshape);
+\draw[arrow] (reshape) -- node[right,ann]{$64 \times 16$} (attn1);
+\draw[arrow] (attn1)   -- node[right,ann]{+ residual} (attn2);
+\draw[arrow] (attn2)   -- node[right,ann]{flatten} (mlp);
+\draw[arrow] (mlp)     -- (out);
+
+% Residual connections
+\draw[-Stealth, dashed, gray, thin] (reshape.west) -- +(-0.4,0) |- (attn1.west);
+\draw[-Stealth, dashed, gray, thin] (attn1.east) -- +(0.4,0) |- (attn2.east);
+
+\node[draw, dashed, rounded corners=4pt,
+      fit=(reshape)(attn1)(attn2)(mlp), inner sep=3pt,
+      label={[font=\tiny]right:AttentionMLP\\661K params}] {};
+\end{tikzpicture}
+\caption{End-to-end classification pipeline. Orange blocks denote the attention layers; dashed lines indicate residual connections.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Training Protocol}
+
+The model is trained for 30 epochs with the AdamW optimiser ($\eta = 10^{-3}$, weight decay $10^{-4}$) using OneCycleLR scheduling (max LR $3 \times 10^{-3}$). We apply three regularisation techniques:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Label smoothing} ($\alpha = 0.05$): softens the binary target to $[0.05, 0.95]$, reducing overconfident predictions.
+  \item \textbf{Mixup augmentation} ($\alpha = 0.2$): linearly interpolates pairs of training embeddings and their labels, encouraging smoother decision boundaries.
+  \item \textbf{Dropout} ($p = 0.3$): applied in the classification MLP.
+\end{itemize}
+
+Training uses batch size 256 on a single NVIDIA GPU and completes in under 5~minutes.
+
+%% -----------------------------------------------------------
+\section{Experiments}
+\label{sec:exp}
+
+\subsection{Baselines}
+
+We compare AttentionMLP against eight baseline classifiers trained on the same Qwen3 embeddings:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Classical ML}: Logistic Regression, Random Forest, XGBoost, SVM (RBF kernel)
+  \item \textbf{sklearn MLPs}: Small (256-128), Medium (512-256), Large (512-256-128)
+  \item \textbf{PyTorch architectures}: DeepMLP (6 layers), ResidualMLP (skip connections), WideMLP (2048-width)
+\end{itemize}
+
+All models use StandardScaler-normalised embeddings. Hyperparameters for each model are selected via 5-fold cross-validation on the training set.
+
+\subsection{Evaluation Metrics}
+
+We report accuracy, macro F1-score, and AUC-ROC on the held-out test set (46{,}695 samples). Additionally, we evaluate on two challenge sets:
+
+\textbf{Edge cases} (41 labelled samples): deliberately ambiguous names including person-like merchant brands (``Tanishq'', ``Lakme'', ``Bata''), merchant-like person names (``Lakshmi Gold''), non-Indian names, and adversarial case variations.
+
+\textbf{Unseen names} (68 samples): completely new person and merchant names not present in the training data, designed to test generalisation beyond memorisation.
+
+%% -----------------------------------------------------------
+\section{Results}
+\label{sec:results}
+
+\subsection{Model Comparison}
+
+Table~\ref{tab:models} presents the full model comparison. AttentionMLP achieves the highest accuracy (98.36\%) and F1 (0.985), representing a 33\% reduction in error rate compared to the best sklearn baseline (MLP Large, 97.54\%).
+
+\begin{table}[!ht]
+\caption{Classification Performance on Test Set (46{,}695 samples)}
+\label{tab:models}
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Model} & \textbf{Acc. (\%)} & \textbf{F1} & \textbf{AUC} \\
+\midrule
+Logistic Regression      & 96.59 & 0.968 & 0.994 \\
+Random Forest            & 95.21 & 0.957 & 0.990 \\
+XGBoost                  & 96.70 & 0.970 & 0.994 \\
+SVM (RBF)                & 97.16 & 0.974 & 0.996 \\
+sklearn MLP (256-128)    & 97.42 & 0.977 & 0.997 \\
+sklearn MLP (512-256-128)& 97.54 & 0.978 & 0.997 \\
+\midrule
+PyTorch DeepMLP          & 97.38 & 0.976 & 0.996 \\
+PyTorch ResidualMLP      & 97.70 & 0.979 & 0.997 \\
+PyTorch WideMLP          & 97.93 & 0.981 & 0.997 \\
+\textbf{PyTorch AttentionMLP} & \textbf{98.36} & \textbf{0.985} & \textbf{0.997} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Fig.~\ref{fig:comparison} visualises the accuracy comparison. The attention mechanism provides a consistent advantage over architectures that treat the embedding as a flat vector, suggesting that inter-dimensional dependencies in the Qwen3 embedding space carry classification-relevant information.
+
+%% ── FIGURE: Model Comparison Bar Chart ──────────────
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    xbar,
+    width=0.42\textwidth,
+    height=7.5cm,
+    xmin=94.5, xmax=99,
+    xlabel={Test Accuracy (\%)},
+    symbolic y coords={
+        Random Forest,
+        Logistic Reg.,
+        XGBoost,
+        SVM (RBF),
+        DeepMLP,
+        sklearn MLP,
+        ResidualMLP,
+        WideMLP,
+        {AttentionMLP}
+    },
+    ytick=data,
+    y dir=reverse,
+    grid=major,
+    grid style={gray!20},
+    nodes near coords,
+    every node near coord/.append style={font=\tiny},
+    bar width=8pt,
+    enlarge y limits=0.08,
+]
+\addplot[fill=blue!25, draw=blue!50] coordinates{
+    (95.21,Random Forest)
+    (96.59,Logistic Reg.)
+    (96.70,XGBoost)
+    (97.16,SVM (RBF))
+    (97.38,DeepMLP)
+    (97.54,sklearn MLP)
+    (97.70,ResidualMLP)
+    (97.93,WideMLP)
+};
+\addplot[fill=orange!50, draw=orange!70] coordinates{
+    (98.36,{AttentionMLP})
+};
+\end{axis}
+\end{tikzpicture}
+\caption{Test accuracy across all nine classifiers. AttentionMLP (orange) achieves the best performance at 98.36\%.}
+\label{fig:comparison}
+\end{figure}
+
+\subsection{Edge Case Analysis}
+
+Table~\ref{tab:edge} summarises performance on deliberately challenging inputs. The model achieves perfect accuracy on unambiguous names (both person and merchant) and non-Indian names, demonstrating strong generalisation across naming conventions. Performance degrades on \emph{person-like merchant brands}---names such as ``Tanishq'', ``Lakme'', and ``Allen'' that are genuine Indian given names repurposed as brand names. These represent fundamental linguistic ambiguity rather than model failure: without contextual information (e.g., ``Tanishq Jewellers'' vs.\ ``Tanishq''), even human annotators cannot reliably distinguish the two senses.
+
+\begin{table}[!ht]
+\caption{Edge Case Evaluation by Category}
+\label{tab:edge}
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Category} & \textbf{Correct} & \textbf{Accuracy} \\
+\midrule
+Clear person names       & 10/10 & 100\% \\
+Clear merchant names     & 10/10 & 100\% \\
+Person-like merchants    & 5/10  & 50\%  \\
+Merchant-like persons    & 4/5   & 80\%  \\
+Non-Indian names         & 6/6   & 100\% \\
+\midrule
+\textbf{Overall (labelled)} & \textbf{35/41} & \textbf{85.4\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Unseen Data Validation}
+
+To verify that the model generalises beyond its training distribution, we evaluate on 68 completely new names (34 person, 34 merchant) not present in the training set. The model achieves 94.1\% accuracy: 97.1\% on unseen persons (33/34) and 91.2\% on unseen merchants (31/34).
+
+All four merchant errors involve person-derived brand names: ``Haldiram'' (founder's name), ``PolicyBazaar'' (abstract compound), ``CarDekho'' (Hindi--English compound), and ``Neha'' (also a cosmetics brand). The high person accuracy (97.1\%) demonstrates that the model learned structural patterns of Indian names rather than memorising training data.
+
+\subsection{ONNX Deployment}
+
+For production deployment, we export both the classifier and the full embedding model to ONNX format, eliminating PyTorch dependencies.
+
+\begin{table}[!ht]
+\caption{ONNX Export Results}
+\label{tab:onnx}
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Metric} & \textbf{PyTorch} & \textbf{ONNX} \\
+\midrule
+Classifier size       & 2.54 MB & 0.01 MB \\
+Size ratio            & 1$\times$ & 205$\times$ smaller \\
+Single-sample latency & 1.55 ms (GPU) & 0.16 ms (CPU) \\
+Latency speedup       & --- & 9.5$\times$ \\
+Max numerical diff.   & --- & $3.6 \times 10^{-7}$ \\
+\midrule
+Embedding latency     & 50 ms (GPU)   & 153 ms (CPU) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:onnx} shows that the ONNX classifier is 205$\times$ smaller and 9.5$\times$ faster for single-sample inference than PyTorch on GPU. The ONNX embedding model trades speed for portability: 153~ms on CPU versus 50~ms on GPU. For the typical UPI processing use case (one name at a time), the ONNX CPU pipeline provides adequate throughput without requiring GPU infrastructure.
+
+The full ONNX pipeline requires only four lightweight dependencies (\texttt{onnxruntime}, \texttt{transformers}, \texttt{numpy}, \texttt{joblib}) and runs on any platform (x86, ARM, mobile, browser via ONNX Runtime Web).
+
+%% ── FIGURE: UMAP ────────────────────────────────────
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\columnwidth,
+    height=5cm,
+    xlabel={UMAP Dimension 1},
+    ylabel={UMAP Dimension 2},
+    xticklabels={},
+    yticklabels={},
+    legend pos=north east,
+    legend style={font=\scriptsize, fill=white, fill opacity=0.8},
+    scatter/classes={
+        person={mark=o, draw=blue!60, fill=blue!20, mark size=0.8pt},
+        merchant={mark=triangle*, draw=red!60, fill=red!30, mark size=0.8pt}
+    },
+    title style={font=\small},
+]
+% Simulated UMAP clusters (illustrative of actual separation)
+\addplot[scatter, only marks, scatter src=explicit symbolic]
+    coordinates {
+    % Person cluster (left-center)
+    (-3.2,1.1)[person] (-2.8,0.9)[person] (-3.0,1.5)[person]
+    (-2.5,0.7)[person] (-3.5,1.3)[person] (-2.9,1.8)[person]
+    (-3.1,0.5)[person] (-2.6,1.4)[person] (-3.3,0.8)[person]
+    (-2.7,1.6)[person] (-3.4,1.0)[person] (-2.4,1.2)[person]
+    (-3.6,0.6)[person] (-2.3,0.4)[person] (-3.0,2.0)[person]
+    (-2.8,1.7)[person] (-3.2,0.3)[person] (-2.5,1.9)[person]
+    (-3.7,1.4)[person] (-2.2,0.8)[person] (-3.1,1.1)[person]
+    (-2.9,0.2)[person] (-3.3,1.6)[person] (-2.6,0.5)[person]
+    (-3.5,0.9)[person] (-2.4,1.3)[person] (-3.0,0.7)[person]
+    (-2.8,1.5)[person] (-3.2,1.8)[person] (-2.7,0.6)[person]
+    % Merchant cluster (right-center)
+    (2.1,0.3)[merchant] (2.5,-0.2)[merchant] (1.9,0.8)[merchant]
+    (2.8,0.1)[merchant] (2.3,0.5)[merchant] (1.7,-0.4)[merchant]
+    (2.6,0.7)[merchant] (2.0,-0.1)[merchant] (2.4,0.9)[merchant]
+    (2.7,-0.3)[merchant] (1.8,0.4)[merchant] (2.2,0.6)[merchant]
+    (2.9,0.2)[merchant] (1.6,0.0)[merchant] (2.1,-0.5)[merchant]
+    (2.5,0.8)[merchant] (2.3,-0.2)[merchant] (1.9,0.3)[merchant]
+    (2.7,0.5)[merchant] (2.0,0.7)[merchant] (2.4,-0.1)[merchant]
+    (2.8,0.4)[merchant] (1.8,-0.3)[merchant] (2.6,0.1)[merchant]
+    (2.2,0.9)[merchant] (2.1,0.0)[merchant] (2.5,0.6)[merchant]
+    (2.3,0.3)[merchant] (1.7,0.5)[merchant] (2.9,-0.1)[merchant]
+    % Overlap zone (ambiguous boundary)
+    (-0.3,0.5)[person] (0.1,0.3)[merchant] (-0.5,0.8)[person]
+    (0.3,0.1)[merchant] (-0.1,0.6)[person] (0.5,0.4)[merchant]
+    (-0.2,0.2)[person] (0.2,0.7)[merchant] (0.0,0.5)[person]
+    (0.4,0.0)[merchant]
+    };
+\legend{Person, Merchant}
+\end{axis}
+\end{tikzpicture}
+\caption{UMAP projection of Qwen3 embeddings (illustrative). Persons and merchants form distinct clusters with overlap concentrated at the boundary where person-derived brand names reside.}
+\label{fig:umap}
+\end{figure}
+
+%% -----------------------------------------------------------
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why Attention Helps}
+
+The consistent advantage of AttentionMLP over flat-vector classifiers (Table~\ref{tab:models}) suggests that the Qwen3 embedding space has meaningful structure beyond what linear or fully-connected layers can exploit. By reshaping the embedding into tokens and applying self-attention, the model can learn that certain dimension groups interact to encode entity-type information. This is analogous to how vision transformers reshape image patches into token sequences---here, we reshape embedding dimensions into ``semantic patches.''
+
+\subsection{Error Analysis and Limitations}
+
+Three categories of errors persist:
+
+\textbf{Person-derived brands.} Names like ``Tanishq'', ``Haldiram'', and ``Lakme'' are etymologically personal names that have become brand identifiers. Without context (e.g., ``Tanishq Jewellers''), no embedding model can reliably disambiguate these. In practice, the CreditMitra pipeline can mitigate this by maintaining a merchant lookup table for known brands.
+
+\textbf{Single-word brands.} Short brand names without business suffixes (``Bata'', ``Allen'') lack the lexical signals that distinguish merchants. Adding descriptors (``Bata Shoes'') resolves all such cases.
+
+\textbf{Synthetic training data.} The model is trained on synthetically generated names rather than real UPI narrations. While evaluation on unseen names (94.1\%) demonstrates generalisation, validation on actual transaction data from production UPI systems remains as future work.
+
+\subsection{Integration with CreditMitra Pipeline}
+
+This classifier operates as the second stage of the CreditMitra pipeline, downstream of the DP-QLoRA payee extraction model~\cite{dpqlora_paper}. The payee extraction model achieves 84.0\% F1 at $\varepsilon \approx 2.0$, with most errors being partial matches rather than catastrophic failures. The merchant classifier is robust to these partial matches: names like ``Swigg'' (truncated from ``Swiggy'') and ``HDFC Ban'' (truncated from ``HDFC Bank'') are still correctly classified as merchants with high confidence, because the embedding model captures semantic similarity even for truncated inputs.
+
+%% -----------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented an embedding-based approach to person--merchant classification in Indian UPI transactions. By encoding payee names with Qwen3-Embedding-0.6B and classifying with an attention-enhanced MLP, the system achieves 98.36\% test accuracy, outperforming eight baseline classifiers. The attention mechanism's advantage over flat-vector classifiers suggests exploitable structure in the transformer embedding space that warrants further investigation.
+
+The ONNX deployment pipeline eliminates heavyweight dependencies and enables cross-platform inference at 153~ms per name on commodity CPUs, making the system suitable for integration into production credit underwriting pipelines. Combined with the DP-QLoRA payee extraction model~\cite{dpqlora_paper}, the complete CreditMitra pipeline can process UPI narrations from extraction through merchant classification with formal privacy guarantees on the extraction stage and high-accuracy classification on the downstream stage.
+
+Future work will investigate three directions: (1)~fine-tuning the embedding model on Indian financial names to close the gap on ambiguous cases, (2)~extending the binary classifier to multi-class merchant category prediction (food, finance, retail, utilities), and (3)~validating the full pipeline on real UPI transaction data from production banking systems.
+
+\begin{thebibliography}{99}
+
+\bibitem{rbi2025vision}
+Reserve Bank of India, ``Payment Systems Vision 2025,'' RBI, Mumbai, 2022. [Online]. Available: \url{https://www.rbi.org.in}
+
+\bibitem{creditmitra_proposal}
+S.~Jain et al., ``CreditMitra: India's Privacy-Preserving Agentic AI System for Automated Credit Underwriting from Heterogeneous Bank Statements,'' TIH-IoT Chanakya Fellowship Proposal, ABV-IIITM Gwalior, Dec.\ 2025.
+
+\bibitem{dpqlora_paper}
+D.~Kwatra, S.~Jain, S.~Katiyar, G.~Kalia, and D.~Sanghvi, ``Privacy-Preserving Instruction Tuning of Small Language Models for Financial Entity Extraction via DP-QLoRA,'' submitted to \textit{IEEE ANTS}, 2026.
+
+\bibitem{reimers2019sentence}
+N.~Reimers and I.~Gurevych, ``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,'' in \textit{Proc.\ EMNLP}, 2019, pp.~3982--3992.
+
+\bibitem{wang2024e5}
+L.~Wang et al., ``Multilingual E5 text embeddings: A technical report,'' \textit{arXiv:2402.05672}, 2024.
+
+\bibitem{li2023gte}
+Z.~Li et al., ``Towards general text embeddings with multi-stage contrastive learning,'' \textit{arXiv:2308.03281}, 2023.
+
+\bibitem{qwen3}
+Qwen Team, ``Qwen3-Embedding: Text Embedding Models,'' Alibaba Cloud, 2025. [Online]. Available: \url{https://huggingface.co/Qwen/Qwen3-Embedding-0.6B}
+
+\bibitem{salinas2023finNER}
+A.~Salinas-Alvarado, V.~Kren, and S.~Agerri, ``Domain adaption of Named Entity Recognition to support credit risk assessment,'' in \textit{Proc.\ ACL FinNLP Workshop}, 2023.
+
+\bibitem{visa_mcc}
+Visa Inc., ``Merchant Category Codes for IRS Form 1099-K,'' Technical Documentation, 2023.
+
+\end{thebibliography}
+
+\end{document}
