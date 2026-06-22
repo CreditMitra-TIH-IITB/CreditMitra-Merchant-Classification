@@ -2,13 +2,24 @@
 
 This directory contains research notes, methodology documentation, and stage-by-stage findings for the UPI Merchant Classification project.
 
-## Files
+## Stages
 
-| File | Description |
-|:---|:---|
-| `01_problem_definition.md` | Problem statement, goals, and approach selection |
-| `02_dataset_generation.md` | Dataset creation methodology, statistics, and quality analysis |
+| Stage | File | Description |
+|:---|:---|:---|
+| 1 | `01_problem_definition.md` | Problem statement, goals, and approach selection |
+| 2 | `02_dataset_generation.md` | Dataset creation methodology, statistics, and quality analysis |
+| 3 | `03_embedding_eda_findings.md` | Full-dataset EDA: UMAP, t-SNE, PCA, cosine similarity, separability |
+| 4 | `04_dimension_importance.md` | Dimension importance: Fisher, t-test, LR coefficients, ablation study |
+| 5 | `05_model_selection.md` | Model selection: 18 experiments, 8 classifiers, stacking analysis |
+
+## Figures
+
+All research figures are in `figures/` (16 plots covering EDA, dimension analysis, and feature correlation).
 
 ## Project Goal
 
-Build a binary classifier that distinguishes **Person Names** from **Merchant/Business Names** in UPI transaction narration strings, using Qwen embeddings + Logistic Regression (Hybrid Production Pipeline).
+Build a binary classifier that distinguishes **Person Names** from **Merchant/Business Names** in UPI transaction narration strings, using Qwen3 embeddings + MLP classifier.
+
+## Best Result
+
+**MLP (512-256-128) on StandardScaler-transformed Qwen3 embeddings: 97.59% test accuracy** (F1=0.978, AUC=0.997) on 233,863 samples.
