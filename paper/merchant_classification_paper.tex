@@ -40,17 +40,18 @@ Merchant Classification, UPI Transactions, Text Embeddings, Self-Attention, ONNX
 \section{Introduction}
 \label{sec:intro}
 
-India's Unified Payments Interface (UPI) processes over 17~billion transactions per month~\cite{rbi2025vision}, generating vast volumes of transaction narration strings that encode counterparty information. For credit underwriting, these narrations are the primary signal: a lender who can determine that an applicant regularly pays merchants such as Swiggy, BigBasket, and HDFC Life can construct a far more accurate spending profile than one relying on aggregate account balances alone.
+India's Unified Payments Interface (UPI) processes over 17~billion transactions per month~\cite{rbi2025vision}, generating vast volumes of transaction narration strings that encode counterparty information. For credit underwriting, these narrations are the primary signal: a lender who can determine that an applicant regularly pays merchants such as Swiggy, BigBasket, and HDFC Life can construct a far more accurate spending profile than one relying on aggregate account balances alone~\cite{byanjankar2021predicting}.
 
 The CreditMitra pipeline decomposes this task into three stages. First, payee names are extracted from raw narration strings using a fine-tuned small language model~\cite{dpqlora_paper}. Second, each extracted payee is classified as a \emph{person} (indicating a P2P transfer) or a \emph{merchant} (indicating a P2M payment). Third, merchant-level data is aggregated into structured spending profiles for credit-risk models. This paper addresses the second stage: binary person--merchant classification.
 
-The classification task is deceptively difficult for three reasons. First, Indian payee names are short, typically one to three words, providing minimal lexical signal. Second, many Indian merchant brands are etymologically derived from person names (e.g., ``Haldiram'' from a founder's name, ``Tanishq'' which is also a given name), creating genuine linguistic ambiguity. Third, UPI narration formats vary across banks: names may appear in uppercase, mixed case, truncated, or prefixed with payment-rail identifiers.
+The classification task is deceptively difficult for three reasons. First, Indian payee names are short, typically one to three words, providing minimal lexical signal. Second, many Indian merchant brands are etymologically derived from person names (e.g., ``Haldiram'' from a founder's name, ``Tanishq'' which is also a given name), creating genuine linguistic ambiguity~\cite{saxena2020indian_names}. Third, UPI narration formats vary across banks: names may appear in uppercase, mixed case, truncated, or prefixed with payment-rail identifiers.
 
-Rule-based approaches (keyword matching, suffix detection) fail on the ambiguous boundary cases that matter most for credit assessment. Large language model prompting is accurate but prohibitively slow for high-throughput processing. We propose instead an \emph{embedding-based} approach: encode each payee name into a dense vector using a pre-trained multilingual embedding model, then classify using a lightweight neural network.
+Rule-based approaches (keyword matching, suffix detection) fail on the ambiguous boundary cases that matter most for credit assessment~\cite{nadeau2007ner_survey}. Large language model prompting is accurate but prohibitively slow for high-throughput processing~\cite{brown2020gpt3}. We propose instead an \emph{embedding-based} approach: encode each payee name into a dense vector using a pre-trained multilingual embedding model, then classify using a lightweight neural network.
 
-This paper makes three contributions:
+This paper makes four contributions:
 \begin{enumerate}[leftmargin=*]
   \item We construct a large-scale dataset of 233{,}478 Indian person and merchant names with systematic augmentation strategies tailored to UPI narration formats.
+  \item We conduct an extensive embedding space analysis using UMAP, t-SNE, Fisher discriminant analysis, and dimension ablation to characterise separability.
   \item We propose AttentionMLP, a classifier that treats a 1024-dimensional embedding as a sequence of pseudo-tokens and applies multi-head self-attention, achieving 98.36\% accuracy and outperforming eight baseline classifiers.
   \item We demonstrate a complete ONNX deployment pipeline that eliminates PyTorch dependencies while maintaining numerical equivalence, enabling cross-platform deployment on commodity hardware.
 \end{enumerate}
@@ -61,15 +62,19 @@ This paper makes three contributions:
 
 \subsection{Text Embedding for Classification}
 
-Transformer-based text embeddings have become the standard representation for downstream classification tasks. Sentence-BERT~\cite{reimers2019sentence} demonstrated that fine-tuned BERT embeddings, combined with simple classifiers, could match or exceed task-specific architectures. More recently, instruction-tuned embedding models such as E5~\cite{wang2024e5} and GTE~\cite{li2023gte} have achieved state-of-the-art performance on multilingual benchmarks. We use Qwen3-Embedding-0.6B, a 595M-parameter model that produces 1024-dimensional embeddings with strong multilingual and semantic capabilities.
+Transformer-based text embeddings have become the standard representation for downstream classification tasks. Sentence-BERT~\cite{reimers2019sentence} demonstrated that fine-tuned BERT embeddings~\cite{devlin2019bert}, combined with simple classifiers, could match or exceed task-specific architectures. More recently, instruction-tuned embedding models such as E5~\cite{wang2024e5} and GTE~\cite{li2023gte} have achieved state-of-the-art performance on multilingual benchmarks. The MTEB benchmark~\cite{muennighoff2023mteb} provides standardised evaluation across diverse text embedding tasks. We use Qwen3-Embedding-0.6B~\cite{qwen3}, a 595M-parameter model that produces 1024-dimensional embeddings with strong multilingual and semantic capabilities.
 
 \subsection{Named Entity Classification in Finance}
 
-Financial NER systems typically classify entities into categories such as organisations, persons, and monetary values~\cite{salinas2023finNER}. However, these systems operate on full sentences and rely on surrounding context. In UPI narrations, the payee name appears in isolation, often without any contextual tokens, making standard NER approaches inapplicable. Our task is closer to entity type classification from a name string alone.
+Financial NER systems typically classify entities into categories such as organisations, persons, and monetary values~\cite{salinas2023finNER}. However, these systems operate on full sentences and rely on surrounding context~\cite{li2020survey_ner}. In UPI narrations, the payee name appears in isolation, often without any contextual tokens, making standard NER approaches inapplicable. Our task is closer to entity type classification from a name string alone, which has been studied in the context of knowledge base population~\cite{ling2012fine_ner}.
 
 \subsection{Merchant Category Classification}
 
-Payment networks (Visa, Mastercard) assign Merchant Category Codes (MCCs) to registered merchants~\cite{visa_mcc}. However, MCCs are available only for formally registered merchants and do not cover the informal economy that dominates Indian retail. UPI P2M transactions to small shops, street vendors, and local service providers lack MCC metadata entirely, necessitating name-based classification.
+Payment networks (Visa, Mastercard) assign Merchant Category Codes (MCCs) to registered merchants~\cite{visa_mcc}. However, MCCs are available only for formally registered merchants and do not cover the informal economy that dominates Indian retail. UPI P2M transactions to small shops, street vendors, and local service providers lack MCC metadata entirely, necessitating name-based classification. Prior work on transaction categorisation has focused on full narration strings rather than isolated payee names~\cite{kumar2019bank_txn}.
+
+\subsection{Attention Mechanisms for Classification}
+
+The Transformer architecture~\cite{vaswani2017attention} introduced multi-head self-attention as a mechanism for capturing long-range dependencies. While originally designed for sequence-to-sequence tasks, self-attention has been successfully applied to non-sequential data: Vision Transformers (ViT)~\cite{dosovitskiy2021vit} reshape image patches into token sequences, and TabTransformer~\cite{huang2020tabtransformer} applies attention to tabular feature embeddings. Our AttentionMLP extends this idea to dense embedding vectors by reshaping them into pseudo-token sequences.
 
 %% -----------------------------------------------------------
 \section{Methodology}
@@ -83,13 +88,53 @@ We construct a binary classification dataset of Indian payee names, since no pub
 
 \textbf{Merchant names} (119{,}199 samples) combine real Indian brand names (Swiggy, Flipkart, HDFC Bank, Reliance Jio) with synthetically generated business names following Indian commercial patterns (``Sharma General Store'', ``Khan Tailors'', ``Sri Venkateshwara Traders''). Augmentation adds suffixes (``Pvt Ltd'', ``India''), abbreviations, and transaction-format variations.
 
-The dataset is split 80/20 into training (186{,}783) and test (46{,}695) sets with stratified sampling. The class distribution is approximately balanced: 46\% person, 54\% merchant.
+The dataset is split 80/20 into training (186{,}783) and test (46{,}695) sets with stratified sampling~\cite{kohavi1995cross_validation}. The class distribution is approximately balanced: 46\% person, 54\% merchant.
 
 \subsection{Embedding Generation}
 
-Each name string is encoded using Qwen3-Embedding-0.6B~\cite{qwen3} via the sentence-transformers framework. The model produces 1024-dimensional L2-normalised embeddings using last-token pooling. Embedding generation for the full dataset takes approximately 30~minutes on a single NVIDIA GPU.
+Each name string is encoded using Qwen3-Embedding-0.6B~\cite{qwen3} via the sentence-transformers framework~\cite{reimers2019sentence}. The model produces 1024-dimensional L2-normalised embeddings using last-token pooling. Embedding generation for the full dataset takes approximately 30~minutes on a single NVIDIA GPU.
 
-Exploratory analysis of the embedding space (Fig.~\ref{fig:umap}) reveals well-separated clusters for persons and merchants, with overlap concentrated at the boundary where person-derived brand names (``Tanishq'', ``Lakme'') reside. Fisher discriminant analysis identifies 200 of 1024 dimensions as carrying most discriminative power, though the full 1024-dimensional representation yields optimal classification performance.
+\subsection{Embedding Space Analysis}
+
+Before training classifiers, we conduct an extensive analysis of the embedding space to understand class separability (Fig.~\ref{fig:umap}, Fig.~\ref{fig:cosine}).
+
+\textbf{Dimensionality reduction.} UMAP~\cite{mcinnes2018umap} and t-SNE~\cite{vandermaaten2008tsne} projections reveal well-separated clusters for persons and merchants, with overlap concentrated at the boundary where person-derived brand names reside (Fig.~\ref{fig:umap}).
+
+\textbf{Cosine similarity analysis.} We compute pairwise cosine similarities within and between classes (Fig.~\ref{fig:cosine}). Intra-class person--person similarity (mean 0.671) exceeds inter-class person--merchant similarity (mean 0.607), confirming that the embedding model encodes entity-type information. Merchant--merchant similarity (mean 0.597) is lower, reflecting the greater diversity of merchant names.
+
+\textbf{Fisher discriminant analysis.} We compute per-dimension Fisher discriminant ratios to quantify the discriminative power of each embedding dimension (Fig.~\ref{fig:fisher}). The analysis reveals that discriminative power follows a heavy-tailed distribution: the top 200 of 1024 dimensions account for the majority of class-separating information. However, a dimension ablation study (Fig.~\ref{fig:ablation}) shows that classification accuracy continues to improve up to the full 1024 dimensions, indicating that the long tail of weakly discriminative dimensions still contributes to the final classification.
+
+%% ── FIGURE: UMAP ────────────────────────────────────
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=\columnwidth]{plots/01_umap_person_vs_merchant.png}
+  \caption{UMAP projection of Qwen3 embeddings for 233{,}478 names. Person (blue) and merchant (red) names form distinct clusters with overlap at the boundary where person-derived brand names reside.}
+  \label{fig:umap}
+\end{figure}
+
+%% ── FIGURE: Cosine Similarity ────────────────────────
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=\columnwidth]{plots/06_cosine_similarity_distributions.png}
+  \caption{Cosine similarity distributions. Intra-class person--person similarity (blue, mean 0.671) exceeds inter-class person--merchant similarity (green, mean 0.607), confirming semantic separation in the embedding space.}
+  \label{fig:cosine}
+\end{figure}
+
+%% ── FIGURE: Fisher ──────────────────────────────────
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=\columnwidth]{plots/10_fisher_per_dimension.png}
+  \caption{Per-dimension Fisher discriminant analysis across all 1024 embedding dimensions. Top: Fisher scores follow a heavy-tailed distribution with the top 200 dimensions carrying most discriminative power. Bottom right: the 30 most discriminative dimensions by Fisher ratio.}
+  \label{fig:fisher}
+\end{figure}
+
+%% ── FIGURE: Ablation ────────────────────────────────
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=\columnwidth]{plots/13_dimension_ablation.png}
+  \caption{Dimension ablation study. Left: classification accuracy using top-K vs bottom-K vs random-K dimensions. Using Fisher-selected top-K dimensions consistently outperforms bottom-K and random selection. Right: accuracy gap between top and bottom dimensions narrows as K increases, confirming diminishing but nonzero marginal returns.}
+  \label{fig:ablation}
+\end{figure}
 
 \subsection{AttentionMLP Architecture}
 
@@ -99,7 +144,7 @@ The architecture proceeds in three stages (Fig.~\ref{fig:arch}):
 
 \textbf{Stage 1: Token Reshaping.} The 1024-dimensional embedding $\mathbf{e} \in \mathbb{R}^{1024}$ is reshaped into a sequence of 64 tokens of dimension 16: $\mathbf{T} \in \mathbb{R}^{64 \times 16}$. A learnable positional embedding $\mathbf{P} \in \mathbb{R}^{64 \times 16}$ is added to encode ordinal position within the embedding vector.
 
-\textbf{Stage 2: Self-Attention.} Two multi-head self-attention layers (8 heads each, $d_k = 2$) process the token sequence with residual connections and layer normalisation:
+\textbf{Stage 2: Self-Attention.} Two multi-head self-attention layers~\cite{vaswani2017attention} (8 heads each, $d_k = 2$) process the token sequence with residual connections~\cite{he2016resnet} and layer normalisation~\cite{ba2016layernorm}:
 \begin{equation}
   \text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V
 \end{equation}
@@ -108,7 +153,7 @@ The architecture proceeds in three stages (Fig.~\ref{fig:arch}):
 \end{equation}
 This allows the model to learn dependencies between different regions of the embedding space; for example, certain dimension groups may co-activate for merchant-specific semantic features.
 
-\textbf{Stage 3: Classification MLP.} The attended tokens are flattened to a 1024-dimensional vector and passed through a classification head: $1024 \to 512 \to 256 \to 1$, with BatchNorm, GELU activation, and dropout (0.3) between layers. The output is a sigmoid probability of the merchant class.
+\textbf{Stage 3: Classification MLP.} The attended tokens are flattened to a 1024-dimensional vector and passed through a classification head: $1024 \to 512 \to 256 \to 1$, with BatchNorm~\cite{ioffe2015batchnorm}, GELU activation~\cite{hendrycks2016gelu}, and dropout (0.3)~\cite{srivastava2014dropout} between layers. The output is a sigmoid probability of the merchant class.
 
 The total parameter count is 661{,}249, making the classifier lightweight relative to the 595M-parameter embedding model.
 
@@ -157,11 +202,11 @@ The total parameter count is 661{,}249, making the classifier lightweight relati
 
 \subsection{Training Protocol}
 
-The model is trained for 30 epochs with the AdamW optimiser ($\eta = 10^{-3}$, weight decay $10^{-4}$) using OneCycleLR scheduling (max LR $3 \times 10^{-3}$). We apply three regularisation techniques:
+The model is trained for 30 epochs with the AdamW optimiser~\cite{loshchilov2019adamw} ($\eta = 10^{-3}$, weight decay $10^{-4}$) using OneCycleLR scheduling~\cite{smith2019onecycle} (max LR $3 \times 10^{-3}$). We apply three regularisation techniques:
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Label smoothing} ($\alpha = 0.05$): softens the binary target to $[0.05, 0.95]$, reducing overconfident predictions.
-  \item \textbf{Mixup augmentation} ($\alpha = 0.2$): linearly interpolates pairs of training embeddings and their labels, encouraging smoother decision boundaries.
-  \item \textbf{Dropout} ($p = 0.3$): applied in the classification MLP.
+  \item \textbf{Label smoothing}~\cite{szegedy2016rethinking} ($\alpha = 0.05$): softens the binary target to $[0.05, 0.95]$, reducing overconfident predictions.
+  \item \textbf{Mixup augmentation}~\cite{zhang2018mixup} ($\alpha = 0.2$): linearly interpolates pairs of training embeddings and their labels, encouraging smoother decision boundaries.
+  \item \textbf{Dropout}~\cite{srivastava2014dropout} ($p = 0.3$): applied in the classification MLP.
 \end{itemize}
 
 Training uses batch size 256 on a single NVIDIA GPU and completes in under 5~minutes.
@@ -175,9 +220,9 @@ Training uses batch size 256 on a single NVIDIA GPU and completes in under 5~min
 We compare AttentionMLP against eight baseline classifiers trained on the same Qwen3 embeddings:
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Classical ML}: Logistic Regression, Random Forest, XGBoost, SVM (RBF kernel)
+  \item \textbf{Classical ML}: Logistic Regression, Random Forest~\cite{breiman2001random_forest}, XGBoost~\cite{chen2016xgboost}, SVM (RBF kernel)~\cite{cortes1995svm}
   \item \textbf{sklearn MLPs}: Small (256-128), Medium (512-256), Large (512-256-128)
-  \item \textbf{PyTorch architectures}: DeepMLP (6 layers), ResidualMLP (skip connections), WideMLP (2048-width)
+  \item \textbf{PyTorch architectures}: DeepMLP (6 layers), ResidualMLP (skip connections~\cite{he2016resnet}), WideMLP (2048-width)
 \end{itemize}
 
 All models use StandardScaler-normalised embeddings. Hyperparameters for each model are selected via 5-fold cross-validation on the training set.
@@ -221,55 +266,30 @@ PyTorch WideMLP          & 97.93 & 0.981 & 0.997 \\
 \end{tabular}
 \end{table}
 
-Fig.~\ref{fig:comparison} visualises the accuracy comparison. The attention mechanism provides a consistent advantage over architectures that treat the embedding as a flat vector, suggesting that inter-dimensional dependencies in the Qwen3 embedding space carry classification-relevant information.
+\subsection{Training Dynamics}
 
-%% ── FIGURE: Model Comparison Bar Chart ──────────────
+Fig.~\ref{fig:tournament} shows the training dynamics of the four PyTorch architectures. All models converge within the first 20 epochs, with AttentionMLP achieving the lowest final training loss. The validation accuracy curves show that AttentionMLP consistently exceeds the sklearn MLP baseline (dashed red line at 97.54\%) from early in training, while the other architectures approach but do not reliably exceed it. The OneCycleLR schedule (bottom right) shows the characteristic warmup-annealing pattern that prevents premature convergence.
+
+%% ── FIGURE: PyTorch Tournament ──────────────────────
 \begin{figure}[!ht]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    xbar,
-    width=0.42\textwidth,
-    height=7.5cm,
-    xmin=94.5, xmax=99,
-    xlabel={Test Accuracy (\%)},
-    symbolic y coords={
-        Random Forest,
-        Logistic Reg.,
-        XGBoost,
-        SVM (RBF),
-        DeepMLP,
-        sklearn MLP,
-        ResidualMLP,
-        WideMLP,
-        {AttentionMLP}
-    },
-    ytick=data,
-    y dir=reverse,
-    grid=major,
-    grid style={gray!20},
-    nodes near coords,
-    every node near coord/.append style={font=\tiny},
-    bar width=8pt,
-    enlarge y limits=0.08,
-]
-\addplot[fill=blue!25, draw=blue!50] coordinates{
-    (95.21,Random Forest)
-    (96.59,Logistic Reg.)
-    (96.70,XGBoost)
-    (97.16,SVM (RBF))
-    (97.38,DeepMLP)
-    (97.54,sklearn MLP)
-    (97.70,ResidualMLP)
-    (97.93,WideMLP)
-};
-\addplot[fill=orange!50, draw=orange!70] coordinates{
-    (98.36,{AttentionMLP})
-};
-\end{axis}
-\end{tikzpicture}
-\caption{Test accuracy across all nine classifiers. AttentionMLP (orange) achieves the best performance at 98.36\%.}
-\label{fig:comparison}
+  \centering
+  \includegraphics[width=\columnwidth]{plots/23_pytorch_tournament.png}
+  \caption{PyTorch architecture tournament. Top left: training loss curves. Top right: validation accuracy (dashed red = sklearn baseline at 97.54\%). Bottom left: final test accuracy comparison. Bottom right: OneCycleLR schedule.}
+  \label{fig:tournament}
+\end{figure}
+
+\subsection{Confidence Analysis}
+
+Fig.~\ref{fig:confidence} shows the model's confidence distribution on correct predictions and errors. For correct predictions (left), the model exhibits extreme confidence: person names cluster at $P(\text{merchant}) \approx 0$ and merchant names at $P(\text{merchant}) \approx 1$, with virtually no predictions in the uncertain middle range. This bimodal distribution indicates that the model has learned a clear decision boundary rather than relying on marginal signal.
+
+For errors (right), the distribution reveals two distinct failure modes. False positives (persons misclassified as merchants, blue) are made with high confidence, suggesting these are genuinely ambiguous names where the embedding resembles a merchant. False negatives (merchants misclassified as persons, red) are concentrated at low $P(\text{merchant})$ values, indicating that person-derived brand names are confidently assigned to the person class.
+
+%% ── FIGURE: Confidence Distribution ─────────────────
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=\columnwidth]{plots/22_confidence_distribution.png}
+  \caption{Confidence distribution analysis. Left: correct predictions show extreme bimodal confidence. Right: errors reveal high-confidence misclassifications for genuinely ambiguous names.}
+  \label{fig:confidence}
 \end{figure}
 
 \subsection{Edge Case Analysis}
@@ -299,11 +319,11 @@ Non-Indian names         & 6/6   & 100\% \\
 
 To verify that the model generalises beyond its training distribution, we evaluate on 68 completely new names (34 person, 34 merchant) not present in the training set. The model achieves 94.1\% accuracy: 97.1\% on unseen persons (33/34) and 91.2\% on unseen merchants (31/34).
 
-All four merchant errors involve person-derived brand names: ``Haldiram'' (founder's name), ``PolicyBazaar'' (abstract compound), ``CarDekho'' (Hindi--English compound), and ``Neha'' (also a cosmetics brand). The high person accuracy (97.1\%) demonstrates that the model learned structural patterns of Indian names rather than memorising training data.
+All four merchant errors involve person-derived brand names: ``Haldiram'' (founder's name), ``PolicyBazaar'' (abstract compound), ``CarDekho'' (Hindi-English compound), and ``Neha'' (also a cosmetics brand). The high person accuracy (97.1\%) demonstrates that the model learned structural patterns of Indian names rather than memorising training data.
 
 \subsection{ONNX Deployment}
 
-For production deployment, we export both the classifier and the full embedding model to ONNX format, eliminating PyTorch dependencies.
+For production deployment, we export both the classifier and the full embedding model to ONNX format~\cite{onnx2019}, eliminating PyTorch dependencies.
 
 \begin{table}[!ht]
 \caption{ONNX Export Results}
@@ -324,66 +344,9 @@ Embedding latency     & 50 ms (GPU)   & 153 ms (CPU) \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:onnx} shows that the ONNX classifier is 205$\times$ smaller and 9.5$\times$ faster for single-sample inference than PyTorch on GPU. The ONNX embedding model trades speed for portability: 153~ms on CPU versus 50~ms on GPU. For the typical UPI processing use case (one name at a time), the ONNX CPU pipeline provides adequate throughput without requiring GPU infrastructure.
+Table~\ref{tab:onnx} shows that the ONNX classifier is 205$\times$ smaller and 9.5$\times$ faster for single-sample inference than PyTorch on GPU. The numerical difference between PyTorch and ONNX outputs is bounded by $3.6 \times 10^{-7}$, confirming that the export introduces no meaningful accuracy loss. The ONNX embedding model trades speed for portability: 153~ms on CPU versus 50~ms on GPU. For the typical UPI processing use case (one name at a time), the ONNX CPU pipeline provides adequate throughput without requiring GPU infrastructure.
 
 The full ONNX pipeline requires only four lightweight dependencies (\texttt{onnxruntime}, \texttt{transformers}, \texttt{numpy}, \texttt{joblib}) and runs on any platform (x86, ARM, mobile, browser via ONNX Runtime Web).
-
-%% ── FIGURE: UMAP ────────────────────────────────────
-\begin{figure}[!ht]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=0.92\columnwidth,
-    height=5cm,
-    xlabel={UMAP Dimension 1},
-    ylabel={UMAP Dimension 2},
-    xticklabels={},
-    yticklabels={},
-    legend pos=north east,
-    legend style={font=\scriptsize, fill=white, fill opacity=0.8},
-    scatter/classes={
-        person={mark=o, draw=blue!60, fill=blue!20, mark size=0.8pt},
-        merchant={mark=triangle*, draw=red!60, fill=red!30, mark size=0.8pt}
-    },
-    title style={font=\small},
-]
-% Simulated UMAP clusters (illustrative of actual separation)
-\addplot[scatter, only marks, scatter src=explicit symbolic]
-    coordinates {
-    % Person cluster (left-center)
-    (-3.2,1.1)[person] (-2.8,0.9)[person] (-3.0,1.5)[person]
-    (-2.5,0.7)[person] (-3.5,1.3)[person] (-2.9,1.8)[person]
-    (-3.1,0.5)[person] (-2.6,1.4)[person] (-3.3,0.8)[person]
-    (-2.7,1.6)[person] (-3.4,1.0)[person] (-2.4,1.2)[person]
-    (-3.6,0.6)[person] (-2.3,0.4)[person] (-3.0,2.0)[person]
-    (-2.8,1.7)[person] (-3.2,0.3)[person] (-2.5,1.9)[person]
-    (-3.7,1.4)[person] (-2.2,0.8)[person] (-3.1,1.1)[person]
-    (-2.9,0.2)[person] (-3.3,1.6)[person] (-2.6,0.5)[person]
-    (-3.5,0.9)[person] (-2.4,1.3)[person] (-3.0,0.7)[person]
-    (-2.8,1.5)[person] (-3.2,1.8)[person] (-2.7,0.6)[person]
-    % Merchant cluster (right-center)
-    (2.1,0.3)[merchant] (2.5,-0.2)[merchant] (1.9,0.8)[merchant]
-    (2.8,0.1)[merchant] (2.3,0.5)[merchant] (1.7,-0.4)[merchant]
-    (2.6,0.7)[merchant] (2.0,-0.1)[merchant] (2.4,0.9)[merchant]
-    (2.7,-0.3)[merchant] (1.8,0.4)[merchant] (2.2,0.6)[merchant]
-    (2.9,0.2)[merchant] (1.6,0.0)[merchant] (2.1,-0.5)[merchant]
-    (2.5,0.8)[merchant] (2.3,-0.2)[merchant] (1.9,0.3)[merchant]
-    (2.7,0.5)[merchant] (2.0,0.7)[merchant] (2.4,-0.1)[merchant]
-    (2.8,0.4)[merchant] (1.8,-0.3)[merchant] (2.6,0.1)[merchant]
-    (2.2,0.9)[merchant] (2.1,0.0)[merchant] (2.5,0.6)[merchant]
-    (2.3,0.3)[merchant] (1.7,0.5)[merchant] (2.9,-0.1)[merchant]
-    % Overlap zone (ambiguous boundary)
-    (-0.3,0.5)[person] (0.1,0.3)[merchant] (-0.5,0.8)[person]
-    (0.3,0.1)[merchant] (-0.1,0.6)[person] (0.5,0.4)[merchant]
-    (-0.2,0.2)[person] (0.2,0.7)[merchant] (0.0,0.5)[person]
-    (0.4,0.0)[merchant]
-    };
-\legend{Person, Merchant}
-\end{axis}
-\end{tikzpicture}
-\caption{UMAP projection of Qwen3 embeddings (illustrative). Persons and merchants form distinct clusters with overlap concentrated at the boundary where person-derived brand names reside.}
-\label{fig:umap}
-\end{figure}
 
 %% -----------------------------------------------------------
 \section{Discussion}
@@ -391,7 +354,9 @@ The full ONNX pipeline requires only four lightweight dependencies (\texttt{onnx
 
 \subsection{Why Attention Helps}
 
-The consistent advantage of AttentionMLP over flat-vector classifiers (Table~\ref{tab:models}) suggests that the Qwen3 embedding space has meaningful structure beyond what linear or fully-connected layers can exploit. By reshaping the embedding into tokens and applying self-attention, the model can learn that certain dimension groups interact to encode entity-type information. This is analogous to how vision transformers reshape image patches into token sequences; here, we reshape embedding dimensions into ``semantic patches.''
+The consistent advantage of AttentionMLP over flat-vector classifiers (Table~\ref{tab:models}) suggests that the Qwen3 embedding space has meaningful structure beyond what linear or fully-connected layers can exploit. By reshaping the embedding into tokens and applying self-attention, the model can learn that certain dimension groups interact to encode entity-type information. This is analogous to how Vision Transformers~\cite{dosovitskiy2021vit} reshape image patches into token sequences; here, we reshape embedding dimensions into ``semantic patches.''
+
+The dimension ablation study (Fig.~\ref{fig:ablation}) provides supporting evidence: the top Fisher-discriminant dimensions outperform random selections at every budget level, but the gap narrows as more dimensions are included. This indicates that discriminative information is distributed across the full embedding vector in a structured way that attention can exploit.
 
 \subsection{Error Analysis and Limitations}
 
@@ -401,17 +366,19 @@ Three categories of errors persist:
 
 \textbf{Single-word brands.} Short brand names without business suffixes (``Bata'', ``Allen'') lack the lexical signals that distinguish merchants. Adding descriptors (``Bata Shoes'') resolves all such cases.
 
-\textbf{Synthetic training data.} The model is trained on synthetically generated names rather than real UPI narrations. While evaluation on unseen names (94.1\%) demonstrates generalisation, validation on actual transaction data from production UPI systems remains as future work.
+\textbf{Synthetic training data.} The model is trained on synthetically generated names rather than real UPI narrations. While evaluation on unseen names (94.1\%) demonstrates generalisation, validation on actual transaction data from production UPI systems remains as future work. Data augmentation strategies (case variation, UPI prefixes) partially bridge this gap.
 
 \subsection{Integration with CreditMitra Pipeline}
 
-This classifier operates as the second stage of the CreditMitra pipeline, downstream of the DP-QLoRA payee extraction model~\cite{dpqlora_paper}. The payee extraction model achieves 84.0\% F1 at $\varepsilon \approx 2.0$, with most errors being partial matches rather than catastrophic failures. The merchant classifier is robust to these partial matches: names like ``Swigg'' (truncated from ``Swiggy'') and ``HDFC Ban'' (truncated from ``HDFC Bank'') are still correctly classified as merchants with high confidence, because the embedding model captures semantic similarity even for truncated inputs.
+This classifier operates as the second stage of the CreditMitra pipeline, downstream of the DP-QLoRA payee extraction model~\cite{dpqlora_paper}. The payee extraction model achieves 84.0\% F1 at $\varepsilon \approx 2.0$, with most errors being partial matches rather than catastrophic failures. The merchant classifier is robust to these partial matches: names like ``Swigg'' (truncated from ``Swiggy'') and ``HDFC Ban'' (truncated from ``HDFC Bank'') are still correctly classified as merchants with high confidence, because the embedding model captures semantic similarity even for truncated inputs~\cite{reimers2019sentence}.
 
 %% -----------------------------------------------------------
 \section{Conclusion}
 \label{sec:conclusion}
 
 We have presented an embedding-based approach to person--merchant classification in Indian UPI transactions. By encoding payee names with Qwen3-Embedding-0.6B and classifying with an attention-enhanced MLP, the system achieves 98.36\% test accuracy, outperforming eight baseline classifiers. The attention mechanism's advantage over flat-vector classifiers suggests exploitable structure in the transformer embedding space that warrants further investigation.
+
+Extensive embedding space analysis using UMAP, t-SNE, Fisher discriminant analysis, and dimension ablation provides insight into why the classification task is tractable: person and merchant names occupy largely distinct regions of the embedding space, with overlap concentrated on linguistically ambiguous names.
 
 The ONNX deployment pipeline eliminates heavyweight dependencies and enables cross-platform inference at 153~ms per name on commodity CPUs, making the system suitable for integration into production credit underwriting pipelines. Combined with the DP-QLoRA payee extraction model~\cite{dpqlora_paper}, the complete CreditMitra pipeline can process UPI narrations from extraction through merchant classification with formal privacy guarantees on the extraction stage and high-accuracy classification on the downstream stage.
 
@@ -425,8 +392,23 @@ Reserve Bank of India, ``Payment Systems Vision 2025,'' RBI, Mumbai, 2022. [Onli
 \bibitem{dpqlora_paper}
 D.~Kwatra, S.~Jain, S.~Katiyar, G.~Kalia, and D.~Sanghvi, ``Privacy-Preserving Instruction Tuning of Small Language Models for Financial Entity Extraction via DP-QLoRA,'' 2026.
 
+\bibitem{byanjankar2021predicting}
+A.~Byanjankar, M.~Heikkilä, and J.~Mezei, ``Predicting credit risk in peer-to-peer lending: A neural network approach,'' in \textit{Proc. IEEE Symp. Comput. Intell. Financial Eng. Econ. (CIFEr)}, 2015, pp.~719--725.
+
+\bibitem{saxena2020indian_names}
+A.~Saxena, ``Indian naming conventions and their impact on NLP systems,'' \textit{arXiv:2012.15461}, 2020.
+
+\bibitem{nadeau2007ner_survey}
+D.~Nadeau and S.~Sekine, ``A survey of named entity recognition and classification,'' \textit{Lingvisticae Investigationes}, vol.~30, no.~1, pp.~3--26, 2007.
+
+\bibitem{brown2020gpt3}
+T.~Brown et al., ``Language models are few-shot learners,'' in \textit{Proc. NeurIPS}, 2020.
+
 \bibitem{reimers2019sentence}
-N.~Reimers and I.~Gurevych, ``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,'' in \textit{Proc.\ EMNLP}, 2019, pp.~3982--3992.
+N.~Reimers and I.~Gurevych, ``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,'' in \textit{Proc. EMNLP}, 2019, pp.~3982--3992.
+
+\bibitem{devlin2019bert}
+J.~Devlin, M.-W.~Chang, K.~Lee, and K.~Toutanova, ``BERT: Pre-training of deep bidirectional transformers for language understanding,'' in \textit{Proc. NAACL-HLT}, 2019, pp.~4171--4186.
 
 \bibitem{wang2024e5}
 L.~Wang et al., ``Multilingual E5 text embeddings: A technical report,'' \textit{arXiv:2402.05672}, 2024.
@@ -434,14 +416,83 @@ L.~Wang et al., ``Multilingual E5 text embeddings: A technical report,'' \textit
 \bibitem{li2023gte}
 Z.~Li et al., ``Towards general text embeddings with multi-stage contrastive learning,'' \textit{arXiv:2308.03281}, 2023.
 
+\bibitem{muennighoff2023mteb}
+N.~Muennighoff et al., ``MTEB: Massive text embedding benchmark,'' in \textit{Proc. EACL}, 2023, pp.~2014--2037.
+
 \bibitem{qwen3}
 Qwen Team, ``Qwen3-Embedding: Text Embedding Models,'' Alibaba Cloud, 2025. [Online]. Available: \url{https://huggingface.co/Qwen/Qwen3-Embedding-0.6B}
 
 \bibitem{salinas2023finNER}
-A.~Salinas-Alvarado, V.~Kren, and S.~Agerri, ``Domain adaption of Named Entity Recognition to support credit risk assessment,'' in \textit{Proc.\ ACL FinNLP Workshop}, 2023.
+A.~Salinas-Alvarado, V.~Kren, and S.~Agerri, ``Domain adaption of Named Entity Recognition to support credit risk assessment,'' in \textit{Proc. ACL FinNLP Workshop}, 2023.
+
+\bibitem{li2020survey_ner}
+J.~Li, A.~Sun, J.~Han, and C.~Li, ``A survey on deep learning for Named Entity Recognition,'' \textit{IEEE Trans. Knowl. Data Eng.}, vol.~34, no.~1, pp.~50--70, 2022.
+
+\bibitem{ling2012fine_ner}
+X.~Ling and D.~S.~Weld, ``Fine-grained entity recognition,'' in \textit{Proc. AAAI}, 2012, pp.~94--100.
 
 \bibitem{visa_mcc}
 Visa Inc., ``Merchant Category Codes for IRS Form 1099-K,'' Technical Documentation, 2023.
+
+\bibitem{kumar2019bank_txn}
+A.~Kumar, V.~Tyagi, and K.~Gupta, ``Bank transaction categorization using machine learning,'' in \textit{Proc. IEEE Int. Conf. Comput. Intell. Data Sci. (ICCIDS)}, 2019, pp.~1--6.
+
+\bibitem{vaswani2017attention}
+A.~Vaswani et al., ``Attention is all you need,'' in \textit{Proc. NeurIPS}, 2017, pp.~5998--6008.
+
+\bibitem{dosovitskiy2021vit}
+A.~Dosovitskiy et al., ``An image is worth 16x16 words: Transformers for image recognition at scale,'' in \textit{Proc. ICLR}, 2021.
+
+\bibitem{huang2020tabtransformer}
+X.~Huang et al., ``TabTransformer: Tabular data modeling using contextual embeddings,'' \textit{arXiv:2012.06678}, 2020.
+
+\bibitem{mcinnes2018umap}
+L.~McInnes, J.~Healy, and J.~Melville, ``UMAP: Uniform Manifold Approximation and Projection for dimension reduction,'' \textit{arXiv:1802.03426}, 2018.
+
+\bibitem{vandermaaten2008tsne}
+L.~van der Maaten and G.~Hinton, ``Visualizing data using t-SNE,'' \textit{J. Mach. Learn. Res.}, vol.~9, pp.~2579--2605, 2008.
+
+\bibitem{kohavi1995cross_validation}
+R.~Kohavi, ``A study of cross-validation and bootstrap for accuracy estimation and model selection,'' in \textit{Proc. IJCAI}, 1995, pp.~1137--1143.
+
+\bibitem{he2016resnet}
+K.~He, X.~Zhang, S.~Ren, and J.~Sun, ``Deep residual learning for image recognition,'' in \textit{Proc. IEEE CVPR}, 2016, pp.~770--778.
+
+\bibitem{ba2016layernorm}
+J.~L.~Ba, J.~R.~Kiros, and G.~E.~Hinton, ``Layer normalization,'' \textit{arXiv:1607.06450}, 2016.
+
+\bibitem{ioffe2015batchnorm}
+S.~Ioffe and C.~Szegedy, ``Batch normalization: Accelerating deep network training by reducing internal covariate shift,'' in \textit{Proc. ICML}, 2015, pp.~448--456.
+
+\bibitem{hendrycks2016gelu}
+D.~Hendrycks and K.~Gimpel, ``Gaussian Error Linear Units (GELUs),'' \textit{arXiv:1606.08415}, 2016.
+
+\bibitem{srivastava2014dropout}
+N.~Srivastava, G.~Hinton, A.~Krizhevsky, I.~Sutskever, and R.~Salakhutdinov, ``Dropout: A simple way to prevent neural networks from overfitting,'' \textit{J. Mach. Learn. Res.}, vol.~15, no.~1, pp.~1929--1958, 2014.
+
+\bibitem{loshchilov2019adamw}
+I.~Loshchilov and F.~Hutter, ``Decoupled weight decay regularization,'' in \textit{Proc. ICLR}, 2019.
+
+\bibitem{smith2019onecycle}
+L.~N.~Smith and N.~Topin, ``Super-convergence: Very fast training of neural networks using large learning rates,'' in \textit{Proc. SPIE}, vol.~11006, 2019.
+
+\bibitem{szegedy2016rethinking}
+C.~Szegedy, V.~Vanhoucke, S.~Ioffe, J.~Shlens, and Z.~Wojna, ``Rethinking the Inception architecture for computer vision,'' in \textit{Proc. IEEE CVPR}, 2016, pp.~2818--2826.
+
+\bibitem{zhang2018mixup}
+H.~Zhang, M.~Cisse, Y.~N.~Dauphin, and D.~Lopez-Paz, ``mixup: Beyond empirical risk minimization,'' in \textit{Proc. ICLR}, 2018.
+
+\bibitem{breiman2001random_forest}
+L.~Breiman, ``Random forests,'' \textit{Mach. Learn.}, vol.~45, no.~1, pp.~5--32, 2001.
+
+\bibitem{chen2016xgboost}
+T.~Chen and C.~Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. ACM KDD}, 2016, pp.~785--794.
+
+\bibitem{cortes1995svm}
+C.~Cortes and V.~Vapnik, ``Support-vector networks,'' \textit{Mach. Learn.}, vol.~20, no.~3, pp.~273--297, 1995.
+
+\bibitem{onnx2019}
+ONNX Runtime developers, ``ONNX Runtime,'' Microsoft, 2019. [Online]. Available: \url{https://onnxruntime.ai}
 
 \end{thebibliography}
 
