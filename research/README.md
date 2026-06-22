@@ -12,10 +12,11 @@ This directory contains research notes, methodology documentation, and stage-by-
 | 4 | `04_dimension_importance.md` | Dimension importance: Fisher, t-test, LR coefficients, ablation study |
 | 5 | `05_model_selection.md` | Model selection: 18 experiments, 8 classifiers, stacking analysis |
 | 6 | `06_final_model_training.md` | Final model training, error analysis, and production export |
+| 7 | `07_pytorch_deep_learning.md` | PyTorch architectures: Attention, ResNet, Wide — beating 97.5% |
 
 ## Figures
 
-All research figures are in `figures/` (18 plots covering EDA, dimension analysis, model evaluation).
+All research figures are in `figures/` (19 plots covering EDA, dimension analysis, model evaluation, PyTorch tournament).
 
 ## Project Goal
 
@@ -23,4 +24,4 @@ Build a binary classifier that distinguishes **Person Names** from **Merchant/Bu
 
 ## Best Result
 
-**MLP (512-256-128) on StandardScaler-transformed Qwen3 embeddings: 97.59% test accuracy** (F1=0.978, AUC=0.997) on 233,863 samples.
+**PyTorch AttentionMLP (self-attention + MLP) on Qwen3 embeddings: 98.36% test accuracy** (F1=0.985, AUC=0.997) — 33% fewer errors than sklearn MLP baseline.
