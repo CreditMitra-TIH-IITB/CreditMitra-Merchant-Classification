@@ -11,10 +11,11 @@ This directory contains research notes, methodology documentation, and stage-by-
 | 3 | `03_embedding_eda_findings.md` | Full-dataset EDA: UMAP, t-SNE, PCA, cosine similarity, separability |
 | 4 | `04_dimension_importance.md` | Dimension importance: Fisher, t-test, LR coefficients, ablation study |
 | 5 | `05_model_selection.md` | Model selection: 18 experiments, 8 classifiers, stacking analysis |
+| 6 | `06_final_model_training.md` | Final model training, error analysis, and production export |
 
 ## Figures
 
-All research figures are in `figures/` (16 plots covering EDA, dimension analysis, and feature correlation).
+All research figures are in `figures/` (18 plots covering EDA, dimension analysis, model evaluation).
 
 ## Project Goal
 
