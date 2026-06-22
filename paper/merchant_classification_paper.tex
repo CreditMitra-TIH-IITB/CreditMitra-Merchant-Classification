@@ -44,7 +44,7 @@ India's Unified Payments Interface (UPI) processes over 17~billion transactions 
 
 The CreditMitra pipeline decomposes this task into three stages. First, payee names are extracted from raw narration strings using a fine-tuned small language model~\cite{dpqlora_paper}. Second, each extracted payee is classified as a \emph{person} (indicating a P2P transfer) or a \emph{merchant} (indicating a P2M payment). Third, merchant-level data is aggregated into structured spending profiles for credit-risk models. This paper addresses the second stage: binary person--merchant classification.
 
-The classification task is deceptively difficult for three reasons. First, Indian payee names are short---typically one to three words---providing minimal lexical signal. Second, many Indian merchant brands are etymologically derived from person names (e.g., ``Haldiram'' from a founder's name, ``Tanishq'' which is also a given name), creating genuine linguistic ambiguity. Third, UPI narration formats vary across banks: names may appear in uppercase, mixed case, truncated, or prefixed with payment-rail identifiers.
+The classification task is deceptively difficult for three reasons. First, Indian payee names are short, typically one to three words, providing minimal lexical signal. Second, many Indian merchant brands are etymologically derived from person names (e.g., ``Haldiram'' from a founder's name, ``Tanishq'' which is also a given name), creating genuine linguistic ambiguity. Third, UPI narration formats vary across banks: names may appear in uppercase, mixed case, truncated, or prefixed with payment-rail identifiers.
 
 Rule-based approaches (keyword matching, suffix detection) fail on the ambiguous boundary cases that matter most for credit assessment. Large language model prompting is accurate but prohibitively slow for high-throughput processing. We propose instead an \emph{embedding-based} approach: encode each payee name into a dense vector using a pre-trained multilingual embedding model, then classify using a lightweight neural network.
 
@@ -65,7 +65,7 @@ Transformer-based text embeddings have become the standard representation for do
 
 \subsection{Named Entity Classification in Finance}
 
-Financial NER systems typically classify entities into categories such as organisations, persons, and monetary values~\cite{salinas2023finNER}. However, these systems operate on full sentences and rely on surrounding context. In UPI narrations, the payee name appears in isolation---often without any contextual tokens---making standard NER approaches inapplicable. Our task is closer to entity type classification from a name string alone.
+Financial NER systems typically classify entities into categories such as organisations, persons, and monetary values~\cite{salinas2023finNER}. However, these systems operate on full sentences and rely on surrounding context. In UPI narrations, the payee name appears in isolation, often without any contextual tokens, making standard NER approaches inapplicable. Our task is closer to entity type classification from a name string alone.
 
 \subsection{Merchant Category Classification}
 
@@ -106,7 +106,7 @@ The architecture proceeds in three stages (Fig.~\ref{fig:arch}):
 \begin{equation}
   \mathbf{T}' = \text{LayerNorm}\!\left(\mathbf{T} + \text{MHSA}(\mathbf{T})\right)
 \end{equation}
-This allows the model to learn dependencies between different regions of the embedding space---for example, that certain dimension groups co-activate for merchant-specific semantic features.
+This allows the model to learn dependencies between different regions of the embedding space; for example, certain dimension groups may co-activate for merchant-specific semantic features.
 
 \textbf{Stage 3: Classification MLP.} The attended tokens are flattened to a 1024-dimensional vector and passed through a classification head: $1024 \to 512 \to 256 \to 1$, with BatchNorm, GELU activation, and dropout (0.3) between layers. The output is a sigmoid probability of the merchant class.
 
@@ -274,7 +274,7 @@ Fig.~\ref{fig:comparison} visualises the accuracy comparison. The attention mech
 
 \subsection{Edge Case Analysis}
 
-Table~\ref{tab:edge} summarises performance on deliberately challenging inputs. The model achieves perfect accuracy on unambiguous names (both person and merchant) and non-Indian names, demonstrating strong generalisation across naming conventions. Performance degrades on \emph{person-like merchant brands}---names such as ``Tanishq'', ``Lakme'', and ``Allen'' that are genuine Indian given names repurposed as brand names. These represent fundamental linguistic ambiguity rather than model failure: without contextual information (e.g., ``Tanishq Jewellers'' vs.\ ``Tanishq''), even human annotators cannot reliably distinguish the two senses.
+Table~\ref{tab:edge} summarises performance on deliberately challenging inputs. The model achieves perfect accuracy on unambiguous names (both person and merchant) and non-Indian names, demonstrating strong generalisation across naming conventions. Performance degrades on \emph{person-like merchant brands}, i.e.\ names such as ``Tanishq'', ``Lakme'', and ``Allen'' that are genuine Indian given names repurposed as brand names. These represent fundamental linguistic ambiguity rather than model failure: without contextual information (e.g., ``Tanishq Jewellers'' vs.\ ``Tanishq''), even human annotators cannot reliably distinguish the two senses.
 
 \begin{table}[!ht]
 \caption{Edge Case Evaluation by Category}
@@ -316,8 +316,8 @@ For production deployment, we export both the classifier and the full embedding 
 Classifier size       & 2.54 MB & 0.01 MB \\
 Size ratio            & 1$\times$ & 205$\times$ smaller \\
 Single-sample latency & 1.55 ms (GPU) & 0.16 ms (CPU) \\
-Latency speedup       & --- & 9.5$\times$ \\
-Max numerical diff.   & --- & $3.6 \times 10^{-7}$ \\
+Latency speedup       & -- & 9.5$\times$ \\
+Max numerical diff.   & -- & $3.6 \times 10^{-7}$ \\
 \midrule
 Embedding latency     & 50 ms (GPU)   & 153 ms (CPU) \\
 \bottomrule
@@ -391,7 +391,7 @@ The full ONNX pipeline requires only four lightweight dependencies (\texttt{onnx
 
 \subsection{Why Attention Helps}
 
-The consistent advantage of AttentionMLP over flat-vector classifiers (Table~\ref{tab:models}) suggests that the Qwen3 embedding space has meaningful structure beyond what linear or fully-connected layers can exploit. By reshaping the embedding into tokens and applying self-attention, the model can learn that certain dimension groups interact to encode entity-type information. This is analogous to how vision transformers reshape image patches into token sequences---here, we reshape embedding dimensions into ``semantic patches.''
+The consistent advantage of AttentionMLP over flat-vector classifiers (Table~\ref{tab:models}) suggests that the Qwen3 embedding space has meaningful structure beyond what linear or fully-connected layers can exploit. By reshaping the embedding into tokens and applying self-attention, the model can learn that certain dimension groups interact to encode entity-type information. This is analogous to how vision transformers reshape image patches into token sequences; here, we reshape embedding dimensions into ``semantic patches.''
 
 \subsection{Error Analysis and Limitations}
 
